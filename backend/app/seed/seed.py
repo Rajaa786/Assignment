@@ -76,8 +76,7 @@ def seed_database(
 
     converter = FxTableCurrencyConverter(DEFAULT_FX_RATES_MICROS, Currency(settings.base_currency))
     rows = [
-        _make_employee_row(index, faker, rng, converter)
-        for index in range(1, employee_count + 1)
+        _make_employee_row(index, faker, rng, converter) for index in range(1, employee_count + 1)
     ]
     session.execute(insert(Employee), rows)
     session.commit()

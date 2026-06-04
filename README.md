@@ -41,17 +41,21 @@ pnpm install
 pnpm dev                         # http://localhost:5173
 ```
 
-Or run the whole stack with one command:
+Or run the whole stack with one command (web on :8080, API on :8000):
 
 ```bash
 docker compose up
+docker compose exec api python -m app.seed.seed   # seed 10k employees (once)
 ```
+
+The natural-language Q&A works without an API key (it falls back to a safe stub query);
+set `ANTHROPIC_API_KEY` in `.env` to use the real model.
 
 ## Tests
 
 ```bash
-cd backend && pytest          # fast, deterministic, no network
-cd web && pnpm test
+cd backend && pytest          # fast, deterministic, no network (97 tests)
+cd web && pnpm test           # Vitest + React Testing Library
 ```
 
 ## Project layout
@@ -63,12 +67,22 @@ backend/app/
   repositories/ data access (SQLAlchemy queries)
   models/       SQLAlchemy ORM models
   schemas/      Pydantic transport schemas
-  domain/       pure value objects: Money, EmployeeId, Country, Compensation
-  core/         config, db, logging, errors, security
+  domain/       pure value objects: Money, Currency, Country, EmployeeId
+  core/         config, db, logging, errors, pagination, rate-limit
   llm/          NL Q&A: prompt building, SQL guard, client
-web/            Vite + React frontend
-docs/           architecture diagram + ADRs
+  seed/         reference data + the 10k generator
+web/            Vite + React frontend (pages, api hooks, ui primitives)
+docs/           architecture diagram, ADRs, AI workflow, performance notes
 ```
+
+## Documentation
+
+- [`requirements.md`](requirements.md) — scope and what we deliberately left out (with reasoning)
+- [`docs/architecture.md`](docs/architecture.md) — diagram, data model, request flows, trade-offs
+- [`docs/decisions/`](docs/decisions/) — 10 ADRs (FastAPI, money model, cursor pagination, SQL guard, …)
+- [`docs/ai-workflow.md`](docs/ai-workflow.md) — how this was built with an AI collaborator, and where judgment overrode it
+- [`docs/performance.md`](docs/performance.md) — performance considerations
+- `CLAUDE.md` — the engineering charter the codebase is held to
 
 ## Live demo & video
 
