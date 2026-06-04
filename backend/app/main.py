@@ -10,8 +10,9 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 
-from app.api import analytics, employees, health, imports
+from app.api import analytics, ask, employees, health, imports
 from app.core.config import settings
 from app.core.errors import (
     AppError,
@@ -23,6 +24,7 @@ from app.core.errors import (
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
 from app.core.pagination import InvalidCursorError
+from app.core.rate_limit import handle_rate_limit_exceeded, limiter
 
 API_PREFIX = "/api/v1"
 
@@ -47,6 +49,7 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    app.state.limiter = limiter
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -60,12 +63,14 @@ def create_app() -> FastAPI:
     app.add_exception_handler(AppError, handle_app_error)  # type: ignore[arg-type]
     app.add_exception_handler(InvalidCursorError, handle_invalid_cursor_error)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, handle_request_validation_error)  # type: ignore[arg-type]
+    app.add_exception_handler(RateLimitExceeded, handle_rate_limit_exceeded)
     app.add_exception_handler(Exception, handle_unexpected_error)
 
     app.include_router(health.router)
     app.include_router(employees.router, prefix=API_PREFIX)
     app.include_router(analytics.router, prefix=API_PREFIX)
     app.include_router(imports.router, prefix=API_PREFIX)
+    app.include_router(ask.router, prefix=API_PREFIX)
 
     return app
 

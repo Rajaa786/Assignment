@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.database import get_session
 from app.domain.currency import Currency
 from app.domain.currency_converter import CurrencyConverter
+from app.llm.client import AnthropicLlmClient, LlmClient, StubLlmClient
 from app.repositories.analytics_repository import SqlAnalyticsRepository
 from app.repositories.employee_repository import SqlEmployeeRepository
 from app.repositories.fx_repository import SqlFxRateRepository
@@ -23,6 +24,11 @@ from app.services.analytics_service import AnalyticsService
 from app.services.csv_service import EmployeeCsvService
 from app.services.currency_converter import FxTableCurrencyConverter
 from app.services.employee_service import EmployeeService
+from app.services.qa_service import QaService
+
+# Process-wide cache of (question hash -> validated SQL) so a repeated question
+# does not re-prompt the model within the running session (CLAUDE.md §7).
+_QA_SQL_CACHE: dict[str, str] = {}
 
 
 def get_employee_repository(session: Session = Depends(get_session)) -> SqlEmployeeRepository:
@@ -59,3 +65,24 @@ def get_csv_service(
 ) -> EmployeeCsvService:
     """Provide the CSV import/export service."""
     return EmployeeCsvService(repository=repository, converter=converter, session=session)
+
+
+def get_llm_client() -> LlmClient:
+    """Provide the LLM client: real Anthropic if a key is set, else a safe stub."""
+    if settings.anthropic_api_key:
+        return AnthropicLlmClient(settings.anthropic_api_key, settings.llm_model)
+    return StubLlmClient()
+
+
+def get_qa_cache() -> dict[str, str]:
+    """Provide the process-wide question->SQL cache (overridable in tests)."""
+    return _QA_SQL_CACHE
+
+
+def get_qa_service(
+    client: LlmClient = Depends(get_llm_client),
+    session: Session = Depends(get_session),
+    cache: dict[str, str] = Depends(get_qa_cache),
+) -> QaService:
+    """Provide the natural-language Q&A service."""
+    return QaService(client=client, session=session, cache=cache)
