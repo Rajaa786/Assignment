@@ -1,6 +1,8 @@
 import type { ApiErrorBody } from "@/api/types";
 
-const API_BASE = "/api/v1";
+// In dev this is the Vite proxy path; in a split deployment (Vercel web + Fly API)
+// set VITE_API_BASE to the API origin, e.g. https://acme-salary-api.fly.dev/api/v1.
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 /** An error carrying the backend's stable error code and message. */
 export class ApiError extends Error {

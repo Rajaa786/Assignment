@@ -1,0 +1,24 @@
+# Full local stack: one command (`docker compose up`) runs the API and the web app.
+# The API uses a SQLite file on a named volume; the web container serves the built
+# SPA on :8080 and proxies /api to the API container.
+services:
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: sqlite:////data/acme_salary.db
+      CORS_ORIGINS: http://localhost:8080
+      LOG_FORMAT: json
+    volumes:
+      - api_data:/data
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ./web
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  api_data:

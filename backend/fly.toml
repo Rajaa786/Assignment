@@ -1,0 +1,29 @@
+# Fly.io deployment for the API. Builds the Dockerfile, mounts a volume for the
+# SQLite file, and health-checks /healthz. For production-grade concurrency, set the
+# DATABASE_URL secret to a Neon PostgreSQL URL instead (ADR-0002) and drop the mount.
+app = "acme-salary-api"
+primary_region = "iad"
+
+[build]
+
+[env]
+  DATABASE_URL = "sqlite:////data/acme_salary.db"
+  LOG_FORMAT = "json"
+  # Set CORS_ORIGINS to the deployed web origin: fly secrets set CORS_ORIGINS=https://<app>.vercel.app
+
+[[mounts]]
+  source = "acme_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/readyz"
+    interval = "15s"
+    timeout = "2s"
