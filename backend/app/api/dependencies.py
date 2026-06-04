@@ -16,8 +16,10 @@ from app.core.config import settings
 from app.core.database import get_session
 from app.domain.currency import Currency
 from app.domain.currency_converter import CurrencyConverter
+from app.repositories.analytics_repository import SqlAnalyticsRepository
 from app.repositories.employee_repository import SqlEmployeeRepository
 from app.repositories.fx_repository import SqlFxRateRepository
+from app.services.analytics_service import AnalyticsService
 from app.services.currency_converter import FxTableCurrencyConverter
 from app.services.employee_service import EmployeeService
 
@@ -42,3 +44,8 @@ def get_employee_service(
     return EmployeeService(
         reader=repository, writer=repository, converter=converter, session=session
     )
+
+
+def get_analytics_service(session: Session = Depends(get_session)) -> AnalyticsService:
+    """Provide the analytics service over a SQL analytics repository."""
+    return AnalyticsService(SqlAnalyticsRepository(session), Currency(settings.base_currency))
