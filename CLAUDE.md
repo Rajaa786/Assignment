@@ -122,13 +122,20 @@ nothing else may be.
 
 Build a thin `domain/` layer with **value objects**:
 
-- `Money(amount: Decimal, currency: ISO4217)` — exact arithmetic, currency
-  mismatches raise (never coerce silently).
+- `Money(amount: Decimal, currency: Currency)` — exact arithmetic, currency
+  mismatches raise (never coerce silently); converts to/from integer minor units.
+- `Currency(ISO4217)` — validated 3-letter code carrying its minor-unit exponent.
 - `EmployeeId(int)` — newtype to prevent passing raw ints.
-- `Country(ISO3166)` — validated 2-letter code.
-- `Compensation(base: Money, bonus: Money, equity: Money)` — frozen.
+- `Country(ISO3166)` — validated 2-letter code with a default currency.
 
 All domain types are immutable (`@dataclass(frozen=True, slots=True)`).
+
+> **Scope note (plan-aligned):** compensation in the current scope is a single
+> **base salary** per employee. A `Compensation(base, bonus, equity)` aggregate was
+> considered but deferred — bonus/equity add columns and currency-aggregation
+> across every layer for a richness the brief doesn't ask for. Like salary history
+> (`ADR-0003`), it can be added additively later. The `Money` value object already
+> supports the arithmetic such an aggregate would need.
 
 ### Clean Boundaries
 
