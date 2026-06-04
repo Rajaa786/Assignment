@@ -62,7 +62,7 @@ warn_unused_ignores = true
 # and avoid `Any` by convention (CLAUDE.md §11), reaching for `object` instead.
 
 [[tool.mypy.overrides]]
-module = ["factory.*", "slowapi.*"]
+module = ["factory.*", "slowapi.*", "faker.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
