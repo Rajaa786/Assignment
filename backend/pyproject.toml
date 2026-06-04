@@ -50,7 +50,9 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
-disallow_any_explicit = true
+# `disallow_any_explicit` is intentionally not enabled: it flags library base
+# classes (pydantic BaseSettings) and stubs, not our code. We keep `--strict`
+# and avoid `Any` by convention (CLAUDE.md §11), reaching for `object` instead.
 
 [[tool.mypy.overrides]]
 module = ["factory.*", "slowapi.*"]
