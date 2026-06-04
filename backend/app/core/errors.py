@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.logging import get_logger
+from app.core.pagination import InvalidCursorError
 
 logger = get_logger(__name__)
 
@@ -104,12 +105,27 @@ async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
 
 
 async def handle_request_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
-    """Map FastAPI's request-schema validation failure to the standard envelope."""
+    """Map FastAPI's request-schema validation failure to the standard envelope.
+
+    Only the location, message, and type of each error are surfaced. The raw
+    ``ctx`` is dropped because it can contain non-serializable exception objects
+    and internal detail we never want to leak to the client.
+    """
+    sanitized = [
+        {"loc": list(error["loc"]), "msg": error["msg"], "type": error["type"]}
+        for error in exc.errors()
+    ]
     body = ErrorBody(
         code="request.invalid",
         message="The request body or parameters failed validation.",
-        details={"errors": exc.errors()},
+        details={"errors": sanitized},
     )
+    return JSONResponse(status_code=422, content=ErrorEnvelope(error=body).model_dump())
+
+
+async def handle_invalid_cursor_error(_: Request, exc: InvalidCursorError) -> JSONResponse:
+    """Map a malformed pagination cursor to a 422 with a stable error code."""
+    body = ErrorBody(code="pagination.invalid_cursor", message=str(exc))
     return JSONResponse(status_code=422, content=ErrorEnvelope(error=body).model_dump())
 
 

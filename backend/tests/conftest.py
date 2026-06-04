@@ -17,6 +17,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_session
 from app.main import app
+from app.models.fx_rate import FxRate
+from app.seed.reference_data import DEFAULT_FX_RATES_MICROS
 
 
 @pytest.fixture
@@ -41,6 +43,19 @@ def db_engine() -> Iterator[Engine]:
 
 
 @pytest.fixture
+def seeded_fx_rates(db_engine: Engine) -> None:
+    """Insert the default exchange rates so the currency converter can normalize."""
+    factory = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+    session = factory()
+    session.add_all(
+        FxRate(currency=code, rate_to_usd_micros=micros)
+        for code, micros in DEFAULT_FX_RATES_MICROS.items()
+    )
+    session.commit()
+    session.close()
+
+
+@pytest.fixture
 def db_session(db_engine: Engine) -> Iterator[Session]:
     """Yield a session bound to the in-memory test engine."""
     factory = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
@@ -52,8 +67,8 @@ def db_session(db_engine: Engine) -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(db_engine: Engine) -> Iterator[TestClient]:
-    """Yield a TestClient whose sessions use the in-memory test engine."""
+def client(db_engine: Engine, seeded_fx_rates: None) -> Iterator[TestClient]:
+    """Yield a TestClient whose sessions use the in-memory test engine (FX seeded)."""
     factory = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
 
     def override_get_session() -> Iterator[Session]:

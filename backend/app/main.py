@@ -11,16 +11,18 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health
+from app.api import employees, health
 from app.core.config import settings
 from app.core.errors import (
     AppError,
     handle_app_error,
+    handle_invalid_cursor_error,
     handle_request_validation_error,
     handle_unexpected_error,
 )
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
+from app.core.pagination import InvalidCursorError
 
 API_PREFIX = "/api/v1"
 
@@ -56,10 +58,12 @@ def create_app() -> FastAPI:
     )
 
     app.add_exception_handler(AppError, handle_app_error)  # type: ignore[arg-type]
+    app.add_exception_handler(InvalidCursorError, handle_invalid_cursor_error)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, handle_request_validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, handle_unexpected_error)
 
     app.include_router(health.router)
+    app.include_router(employees.router, prefix=API_PREFIX)
 
     return app
 
