@@ -8,11 +8,12 @@ business rules or opens transactions — that is the service's job.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol, TypeVar
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, func, insert, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.pagination import SortDirection, decode_cursor, encode_cursor
@@ -123,6 +124,33 @@ class SqlEmployeeRepository:
     def add(self, employee: Employee) -> None:
         """Stage a new employee for insertion (no commit — the service owns that)."""
         self._session.add(employee)
+
+    def max_id(self) -> int:
+        """Return the largest employee id in the table, or 0 if empty.
+
+        Used by bulk import to pre-allocate ``EMP-`` codes for inserted rows. Safe
+        for the single-writer profile of this tool (one HR manager).
+        """
+        return self._session.scalar(select(func.coalesce(func.max(Employee.id), 0))) or 0
+
+    def bulk_insert(self, rows: list[dict[str, object]]) -> None:
+        """Insert many employees in a single statement (no commit).
+
+        Uses a Core ``insert`` executemany rather than per-row ``add`` so large CSV
+        imports and the 10k seed stay fast (``CLAUDE.md`` §6).
+        """
+        if rows:
+            self._session.execute(insert(Employee), rows)
+
+    def iter_filtered(self, filters: EmployeeFilters) -> Iterator[Employee]:
+        """Stream all active employees matching the filters, ordered by id.
+
+        Streams with ``yield_per`` so CSV export of the full dataset never loads
+        every row into memory at once.
+        """
+        stmt = select(Employee).where(Employee.deleted_at.is_(None))
+        stmt = self._apply_filters(stmt, filters).order_by(Employee.id.asc())
+        yield from self._session.scalars(stmt).yield_per(500)
 
     def soft_delete(self, employee: Employee) -> None:
         """Mark an employee as deleted by stamping ``deleted_at`` (no commit)."""

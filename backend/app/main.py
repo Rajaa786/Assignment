@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analytics, employees, health
+from app.api import analytics, employees, health, imports
 from app.core.config import settings
 from app.core.errors import (
     AppError,
@@ -65,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(employees.router, prefix=API_PREFIX)
     app.include_router(analytics.router, prefix=API_PREFIX)
+    app.include_router(imports.router, prefix=API_PREFIX)
 
     return app
 

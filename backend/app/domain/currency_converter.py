@@ -11,12 +11,16 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from app.domain.currency import Currency
 from app.domain.money import Money
 
 
 @runtime_checkable
 class CurrencyConverter(Protocol):
     """Converts monetary amounts into the system's base currency."""
+
+    base_currency: Currency
+    """The currency every amount is normalized to."""
 
     def to_base(self, money: Money) -> Money:
         """Convert ``money`` into the base currency.

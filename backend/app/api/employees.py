@@ -12,14 +12,16 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 
-from app.api.dependencies import get_employee_service
+from app.api.dependencies import get_csv_service, get_employee_service
 from app.core.pagination import SortDirection
 from app.domain.currency import Currency
 from app.domain.enums import Department, Level
 from app.repositories.employee_repository import EmployeeFilters
 from app.schemas.common import Page
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.services.csv_service import EmployeeCsvService
 from app.services.employee_service import EmployeeService
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -31,6 +33,25 @@ _USD = Currency("USD")
 def _to_usd_minor(amount: Decimal | None) -> int | None:
     """Convert an optional USD major-unit amount to integer minor units (cents)."""
     return None if amount is None else int(amount * _USD.minor_unit_factor)
+
+
+def _build_filters(
+    q: str | None,
+    department: Department | None,
+    country: str | None,
+    level: Level | None,
+    salary_usd_min: Decimal | None,
+    salary_usd_max: Decimal | None,
+) -> EmployeeFilters:
+    """Assemble the repository filter object from raw query parameters."""
+    return EmployeeFilters(
+        search=q,
+        department=department.value if department else None,
+        country=country.upper() if country else None,
+        level=level.value if level else None,
+        salary_usd_min_minor=_to_usd_minor(salary_usd_min),
+        salary_usd_max_minor=_to_usd_minor(salary_usd_max),
+    )
 
 
 @router.post(
@@ -62,16 +83,28 @@ def list_employees(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> Page[EmployeeResponse]:
     """Return a cursor-paginated, filtered, sorted page of employees."""
-    filters = EmployeeFilters(
-        search=q,
-        department=department.value if department else None,
-        country=country.upper() if country else None,
-        level=level.value if level else None,
-        salary_usd_min_minor=_to_usd_minor(salary_usd_min),
-        salary_usd_max_minor=_to_usd_minor(salary_usd_max),
-    )
+    filters = _build_filters(q, department, country, level, salary_usd_min, salary_usd_max)
     return service.list_employees(
         filters, sort_by=sort_by, sort_dir=sort_dir, cursor=cursor, limit=limit
+    )
+
+
+@router.get("/export", summary="Export employees as CSV")
+def export_employees(
+    csv_service: EmployeeCsvService = Depends(get_csv_service),
+    q: str | None = Query(default=None),
+    department: Department | None = Query(default=None),
+    country: str | None = Query(default=None, min_length=2, max_length=2),
+    level: Level | None = Query(default=None),
+    salary_usd_min: Decimal | None = Query(default=None, ge=0),
+    salary_usd_max: Decimal | None = Query(default=None, ge=0),
+) -> StreamingResponse:
+    """Stream the current filtered employee view as a downloadable CSV file."""
+    filters = _build_filters(q, department, country, level, salary_usd_min, salary_usd_max)
+    return StreamingResponse(
+        csv_service.export_csv(filters),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=employees.csv"},
     )
 
 

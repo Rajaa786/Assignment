@@ -8,8 +8,6 @@ transaction boundary — routers never commit, repositories never commit.
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -206,7 +204,7 @@ class EmployeeService:
     def _to_response(self, employee: Employee) -> EmployeeResponse:
         """Map an ORM employee to its response schema, reconstructing money exactly."""
         currency = Currency(employee.currency)
-        base_currency = self._converter.to_base(Money(Decimal(0), currency)).currency
+        base_currency = self._converter.base_currency
         local_salary = Money.from_minor_units(employee.base_salary_minor, currency)
         usd_salary = Money.from_minor_units(employee.base_salary_usd_minor, base_currency)
         return EmployeeResponse(
