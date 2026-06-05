@@ -63,7 +63,33 @@ cd web && pnpm install && pnpm dev   # http://localhost:5173
 ```
 
 The natural-language Q&A works without an API key (it falls back to a safe stub query);
-set `ANTHROPIC_API_KEY` in `.env` to use the real model.
+set an LLM key to use a real model — see Configuration.
+
+## Configuration
+
+All config is read from environment variables into one typed `Settings`
+([backend/app/core/config.py](backend/app/core/config.py)) — 12-factor, no config in code.
+
+**Natural-language Q&A is provider-pluggable** (`ADR-0012`). The provider is chosen by env and
+falls back to a safe offline stub when no key is set, so the app always runs:
+
+| Variable | Purpose |
+|---|---|
+| `LLM_PROVIDER` | `auto` (default — pick whichever key is set), or force `anthropic` / `gemini` / `stub` |
+| `ANTHROPIC_API_KEY` | Anthropic (Claude) key |
+| `GEMINI_API_KEY` | Google Gemini key |
+| `LLM_MODEL` | optional model override (defaults: `claude-haiku-4-5`, `gemini-2.5-flash`) |
+
+Have a Gemini key? `LLM_PROVIDER=gemini` + `GEMINI_API_KEY=…`. Adding another provider is one
+builder in [backend/app/llm/factory.py](backend/app/llm/factory.py) — the selector never changes.
+
+**Where secrets go per environment** (the LLM key is **backend-only** — never in the frontend):
+
+- **Local / Docker Compose:** copy `.env.example` → `.env` at the repo root (gitignored) and set a
+  key. Compose interpolates `${GEMINI_API_KEY}` etc. into the API container. Or pass inline:
+  `GEMINI_API_KEY=… LLM_PROVIDER=gemini docker compose up`.
+- **Fly.io (API):** `fly secrets set GEMINI_API_KEY=… LLM_PROVIDER=gemini` (encrypted, not in the image).
+- **Vercel (web):** only `VITE_API_BASE` (the API origin). The frontend never holds an LLM key.
 
 ## Tests
 

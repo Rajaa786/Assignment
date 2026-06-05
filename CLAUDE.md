@@ -208,8 +208,12 @@ All domain types are immutable (`@dataclass(frozen=True, slots=True)`).
 
 This is the highest-risk surface in the application. Treat it as such.
 
-- **Use the Anthropic Python SDK** with Claude (Haiku for cheap, Sonnet for
-  quality — make the model configurable via env var).
+- **The LLM provider is pluggable behind the `LlmClient` protocol** (`ADR-0012`).
+  **Anthropic (Claude) is the default**; Gemini is also supported, and an offline
+  stub is used when no key is set. The provider and model are chosen by env
+  (`LLM_PROVIDER`, `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`, optional `LLM_MODEL`)
+  via a small registry/factory — add a provider by registering one builder, never
+  by editing the selector (Open/Closed).
 - The LLM generates **SQL only**, against a **read-only database role** with
   `SELECT` privilege on the salary tables only.
 - Generated SQL passes through a **SQL guard** before execution. Reject if:
@@ -229,9 +233,8 @@ This is the highest-risk surface in the application. Treat it as such.
   re-prompt.
 - **Never** surface raw LLM errors to the user. Log internally with the
   request ID, return a generic "couldn't answer that — try rephrasing."
-- Tests use a **mock LLM client**. The real Anthropic API is never called in
-  unit or CI tests. There is one end-to-end smoke test gated behind a
-  `--runslow` flag.
+- Tests use a **mock/stub LLM client**. No real provider API (Anthropic or
+  Gemini) is ever called in unit or CI tests.
 - Adversarial tests cover: attempted DDL, attempted DML, multi-statement
   injection, comment injection, system-table access.
 
@@ -619,6 +622,7 @@ must exist **before or with** the code that implements it:
 | 0009 | Authentication deferred — IdP-proxy production path |
 | 0010 | shadcn/ui over Material UI / Chakra |
 | 0011 | Publish images to GHCR + auto-seed for zero-effort reviewer onboarding |
+| 0012 | Pluggable LLM provider (Strategy/factory) — Anthropic default, Gemini optional |
 
 If you make a decision during the build that meets the ADR-worthy bar
 and isn't on this list, **create one and update this table in the same

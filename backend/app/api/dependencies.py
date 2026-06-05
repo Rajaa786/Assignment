@@ -16,7 +16,8 @@ from app.core.config import settings
 from app.core.database import get_session
 from app.domain.currency import Currency
 from app.domain.currency_converter import CurrencyConverter
-from app.llm.client import AnthropicLlmClient, LlmClient, StubLlmClient
+from app.llm.client import LlmClient
+from app.llm.factory import build_llm_client
 from app.repositories.analytics_repository import SqlAnalyticsRepository
 from app.repositories.employee_repository import SqlEmployeeRepository
 from app.repositories.fx_repository import SqlFxRateRepository
@@ -68,10 +69,8 @@ def get_csv_service(
 
 
 def get_llm_client() -> LlmClient:
-    """Provide the LLM client: real Anthropic if a key is set, else a safe stub."""
-    if settings.anthropic_api_key:
-        return AnthropicLlmClient(settings.anthropic_api_key, settings.llm_model)
-    return StubLlmClient()
+    """Provide the LLM client for the configured provider (Anthropic, Gemini, or stub)."""
+    return build_llm_client(settings)
 
 
 def get_qa_cache() -> dict[str, str]:

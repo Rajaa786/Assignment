@@ -15,6 +15,10 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Each provider's default model, used when no explicit LLM_MODEL override is set.
+DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+
 
 class LlmClient(Protocol):
     """Produces a candidate SQL string for a question, given a system prompt."""
@@ -49,6 +53,37 @@ class AnthropicLlmClient:
         )
         parts = [block.text for block in message.content if block.type == "text"]
         return "".join(parts).strip()
+
+
+class GeminiLlmClient:
+    """LlmClient backed by Google's Gemini API (google-genai SDK).
+
+    Same contract as :class:`AnthropicLlmClient` — produce candidate SQL from a system
+    prompt and a question. The SDK is imported lazily so the module loads without the
+    package configured, and the schema/rules go in as the system instruction.
+    """
+
+    def __init__(self, api_key: str, model: str, max_tokens: int = 512) -> None:
+        self._api_key = api_key
+        self._model = model
+        self._max_tokens = max_tokens
+
+    def generate_sql(self, system_prompt: str, question: str) -> str:
+        """Call Gemini and return its raw text completion (candidate SQL)."""
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=self._api_key)
+        response = client.models.generate_content(
+            model=self._model,
+            contents=question,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                max_output_tokens=self._max_tokens,
+                temperature=0,
+            ),
+        )
+        return (response.text or "").strip()
 
 
 class StubLlmClient:

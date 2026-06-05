@@ -11,6 +11,11 @@ services:
       CORS_ORIGINS: http://localhost:8080
       LOG_FORMAT: json
       SEED_ON_STARTUP: "true"
+      # LLM config passed through from a gitignored root .env (or the host env).
+      # Empty keys -> the app uses a safe offline stub. Never commit real keys.
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       - api_data:/data
     ports:

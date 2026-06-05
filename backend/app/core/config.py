@@ -39,8 +39,13 @@ class Settings(BaseSettings):
     log_format: Literal["json", "console"] = "console"
     log_level: str = "INFO"
 
+    # Natural-language Q&A provider. "auto" picks whichever provider has a key set;
+    # name a provider to force it (a missing key falls back to the offline stub).
+    llm_provider: Literal["auto", "anthropic", "gemini", "stub"] = "auto"
     anthropic_api_key: str | None = None
-    llm_model: str = "claude-haiku-4-5-20251001"
+    gemini_api_key: str | None = None
+    # Optional model override; each provider supplies its own default when unset.
+    llm_model: str | None = None
     llm_max_prompt_tokens: int = 4000
 
     base_currency: str = "USD"
