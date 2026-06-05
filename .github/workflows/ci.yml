@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs on the same branch/PR ref — the newest commit is the
+# only one whose result matters, and PRs receive rapid successive pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend (ruff · mypy · pytest)

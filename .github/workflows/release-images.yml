@@ -10,6 +10,13 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Cancel superseded runs for the same ref. The group key includes github.ref, so
+# distinct v* tags never cancel each other; only redundant main builds racing to
+# tag :latest get cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish:
     name: Build & push ${{ matrix.image }}
@@ -55,5 +62,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Scope cache per image so the api and web matrix legs don't thrash
+          # each other's layers in the shared GitHub Actions cache.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
