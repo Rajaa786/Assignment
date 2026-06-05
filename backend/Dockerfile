@@ -17,5 +17,6 @@ COPY alembic.ini ./
 
 EXPOSE 8000
 
-# Apply migrations, then start the API. The DATABASE_URL env selects the engine.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Apply migrations, optionally seed an empty DB (SEED_ON_STARTUP), then start the API.
+# The DATABASE_URL env selects the engine.
+CMD ["sh", "-c", "alembic upgrade head && python -m app.seed.bootstrap && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

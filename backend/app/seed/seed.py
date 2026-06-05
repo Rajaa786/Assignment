@@ -14,7 +14,7 @@ from datetime import date
 from decimal import Decimal
 
 from faker import Faker
-from sqlalchemy import delete, insert
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -81,6 +81,26 @@ def seed_database(
     session.execute(insert(Employee), rows)
     session.commit()
     return len(rows)
+
+
+def seed_if_empty(
+    session: Session,
+    *,
+    employee_count: int = DEFAULT_EMPLOYEE_COUNT,
+    faker_seed: int = FAKER_SEED,
+) -> int:
+    """Seed the database only if it has no employees yet.
+
+    Idempotent companion to :func:`seed_database` for container startup: it seeds on
+    a fresh database but does nothing on restart, so existing data is never wiped.
+
+    Returns:
+        The number of employees inserted (0 if the database was already populated).
+    """
+    existing = session.scalar(select(func.count()).select_from(Employee)) or 0
+    if existing > 0:
+        return 0
+    return seed_database(session, employee_count=employee_count, faker_seed=faker_seed)
 
 
 def _make_employee_row(

@@ -1,6 +1,8 @@
-# Full local stack: one command (`docker compose up`) runs the API and the web app.
+# Full local stack from source (`docker compose up --build`) — API + web app.
 # The API uses a SQLite file on a named volume; the web container serves the built
-# SPA on :8080 and proxies /api to the API container.
+# SPA on :8080 and proxies /api to the API container. The API auto-seeds 10,000
+# employees on first start (idempotent). To run from prebuilt images instead, use
+# docker-compose.images.yml.
 services:
   api:
     build: ./backend
@@ -8,6 +10,7 @@ services:
       DATABASE_URL: sqlite:////data/acme_salary.db
       CORS_ORIGINS: http://localhost:8080
       LOG_FORMAT: json
+      SEED_ON_STARTUP: "true"
     volumes:
       - api_data:/data
     ports:

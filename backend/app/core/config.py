@@ -45,6 +45,10 @@ class Settings(BaseSettings):
 
     base_currency: str = "USD"
 
+    # When true, the container bootstrap seeds 10k employees on startup if the
+    # database is empty. Off by default so local dev and tests never auto-seed.
+    seed_on_startup: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return the CORS allowlist as a clean list of origins.

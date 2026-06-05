@@ -23,7 +23,30 @@ natural-language Q&A box backed by guarded, read-only SQL.
 | Tests | pytest · factory-boy (API) · Vitest · React Testing Library (web) |
 | Deploy | Docker Compose (local parity) · Fly.io (API) · Vercel (web) |
 
-## Quick start
+## Run it (pick one)
+
+### 1. Prebuilt images — fastest, no clone, no toolchain ⭐
+
+Pulls published images from GHCR and starts the full stack, **auto-seeded with 10,000
+employees** on first boot. The only file you need is `docker-compose.images.yml`.
+
+```bash
+curl -O https://raw.githubusercontent.com/OWNER/REPO/main/docker-compose.images.yml
+docker compose -f docker-compose.images.yml up
+# open http://localhost:8080     ·     API docs at http://localhost:8000/docs
+```
+
+_(Replace `OWNER/REPO` with this repository's path. Images: `ghcr.io/OWNER/acme-salary-api`
+and `…-web`.)_
+
+### 2. From source with Docker
+
+```bash
+docker compose up --build        # builds both images, auto-seeds 10k on first start
+# web http://localhost:8080  ·  API http://localhost:8000
+```
+
+### 3. Local dev (hot reload)
 
 ```bash
 # Backend
@@ -31,21 +54,12 @@ cd backend
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
-alembic upgrade head            # apply migrations
-python -m app.seed.seed          # seed 10,000 employees (< 10s)
+alembic upgrade head
+python -m app.seed.seed          # seed 10,000 employees (< 1s)
 uvicorn app.main:app --reload    # http://localhost:8000  ·  docs at /docs
 
-# Frontend
-cd web
-pnpm install
-pnpm dev                         # http://localhost:5173
-```
-
-Or run the whole stack with one command (web on :8080, API on :8000):
-
-```bash
-docker compose up
-docker compose exec api python -m app.seed.seed   # seed 10k employees (once)
+# Frontend (separate terminal)
+cd web && pnpm install && pnpm dev   # http://localhost:5173
 ```
 
 The natural-language Q&A works without an API key (it falls back to a safe stub query);

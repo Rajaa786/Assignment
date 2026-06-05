@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.employee import Employee
 from app.models.fx_rate import FxRate
 from app.seed.reference_data import DEFAULT_FX_RATES_MICROS
-from app.seed.seed import seed_database
+from app.seed.seed import seed_database, seed_if_empty
 
 
 def test_seed_inserts_employees_and_fx_rates(db_session: Session) -> None:
@@ -35,3 +35,19 @@ def test_seed_is_idempotent_replacing_prior_data(db_session: Session) -> None:
     seed_database(db_session, employee_count=30, faker_seed=1)
 
     assert db_session.scalar(select(func.count()).select_from(Employee)) == 30
+
+
+def test_seed_if_empty_seeds_a_fresh_database(db_session: Session) -> None:
+    inserted = seed_if_empty(db_session, employee_count=40, faker_seed=3)
+
+    assert inserted == 40
+    assert db_session.scalar(select(func.count()).select_from(Employee)) == 40
+
+
+def test_seed_if_empty_is_a_noop_when_already_populated(db_session: Session) -> None:
+    seed_database(db_session, employee_count=40, faker_seed=3)
+
+    inserted = seed_if_empty(db_session, employee_count=10, faker_seed=3)
+
+    assert inserted == 0
+    assert db_session.scalar(select(func.count()).select_from(Employee)) == 40
