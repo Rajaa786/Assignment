@@ -130,8 +130,6 @@ def validate_sql(sql: str) -> GuardResult:
         return _reject("empty statement")
     if len(stripped) > MAX_SQL_LENGTH:
         return _reject("statement exceeds length limit")
-    if "--" in stripped or "/*" in stripped or "*/" in stripped:
-        return _reject("comments are not allowed")
     if ";" in stripped.rstrip(";"):
         return _reject("multiple statements are not allowed")
 
@@ -174,7 +172,11 @@ def validate_sql(sql: str) -> GuardResult:
         if name not in ALLOWED_FUNCTIONS:
             return _reject(f"function not allowed: {name}")
 
-    return GuardResult(allowed=True, sql=statement.sql(dialect="sqlite"))
+    # Re-emit from the AST with comments stripped: the executed SQL is always the guard's
+    # own normalized output, never the raw model text. A stray comment the model adds is
+    # discarded here rather than rejected; comment-based multi-statement smuggling is still
+    # blocked by the single-statement parse and the ';' check above.
+    return GuardResult(allowed=True, sql=statement.sql(dialect="sqlite", comments=False))
 
 
 def _function_name(function: exp.Func) -> str:

@@ -33,6 +33,14 @@ We will let the LLM generate **SQL only**, and defend in depth:
    > unknown tables. **Security is unchanged in kind:** still single `SELECT`-only, read-only role,
    > row/time caps; a CTE body is still walked, so `WITH t AS (SELECT * FROM users)` is rejected on
    > the inner `users` reference (adversarial tests cover CTE-masking of `users`/`sqlite_master`).
+   > The allowlist was also broadened in the same pass to the safe, deterministic SQLite built-ins
+   > an analytics model actually uses (math/string/date/type plus `total`/`group_concat`); `CASE`/
+   > `IIF` are control-flow, not callable functions, so they are skipped like operators. **Comments
+   > are now stripped, not rejected:** the executed SQL is always the guard's own re-emitted AST
+   > (`comments=False`), so a stray model comment is discarded; comment-based multi-statement
+   > smuggling is still blocked by the single-statement parse and the `;` check (adversarial test
+   > covers a `;` hidden in a comment).
+   >
    > Two earlier bugs were also fixed alongside: sqlglot models boolean `AND`/`OR` as `Func`
    > subclasses (they were wrongly rejected — now operator nodes are skipped), and gemini-2.5-flash
    > truncated SQL under a 512-token output budget (raised so reasoning + SQL both fit).

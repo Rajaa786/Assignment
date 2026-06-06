@@ -33,6 +33,9 @@ ALLOWED_QUERIES = [
     "SELECT department, CAST(SUM(CASE WHEN pct = 1 THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS ratio "
     "FROM (SELECT department, NTILE(10) OVER (ORDER BY base_salary_usd_minor DESC) AS pct "
     "FROM employees WHERE deleted_at IS NULL) GROUP BY department",
+    # A stray comment is stripped, not rejected — the query is still a valid single SELECT.
+    "SELECT department FROM employees -- inline note\nWHERE deleted_at IS NULL",
+    "SELECT department FROM employees /* block note */ WHERE deleted_at IS NULL",
 ]
 
 REJECTED_QUERIES = [
@@ -47,8 +50,8 @@ REJECTED_QUERIES = [
     "SELECT load_extension('evil.so') FROM employees",
     "SELECT randomblob(1000000000) FROM employees",
     "SELECT zeroblob(1000000000) FROM employees",
-    "SELECT department FROM employees -- sneaky comment",
-    "SELECT department FROM employees /* block comment */",
+    # A comment may not smuggle a second statement (the ';' is still caught).
+    "SELECT department FROM employees -- harmless\n; DROP TABLE employees",
     "PRAGMA table_info(employees)",
     "ATTACH DATABASE 'x.db' AS x",
     "",
@@ -79,3 +82,15 @@ def test_overlong_statement_is_rejected() -> None:
     long_sql = "SELECT " + ", ".join(["department"] * 500) + " FROM employees"
 
     assert not validate_sql(long_sql).allowed
+
+
+def test_comments_are_stripped_from_executed_sql() -> None:
+    result = validate_sql(
+        "SELECT department FROM employees /* secret */ WHERE deleted_at IS NULL -- tail"
+    )
+
+    assert result.allowed, result.reason
+    assert result.sql is not None
+    assert "/*" not in result.sql
+    assert "secret" not in result.sql
+    assert "--" not in result.sql
