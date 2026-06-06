@@ -71,7 +71,7 @@ class GeminiLlmClient:
     package configured, and the schema/rules go in as the system instruction.
     """
 
-    def __init__(self, api_key: str, model: str, max_tokens: int = 512) -> None:
+    def __init__(self, api_key: str, model: str, max_tokens: int = 4096) -> None:
         self._api_key = api_key
         self._model = model
         self._max_tokens = max_tokens
@@ -87,6 +87,10 @@ class GeminiLlmClient:
             contents=question,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
+                # gemini-2.5-flash "thinks" by default and reasoning tokens share this
+                # budget; 512 left nothing for the SQL on hard questions, truncating it
+                # mid-statement. Keep thinking on (it helps multi-step analytical SQL) and
+                # give it ample room so both the reasoning and the final SQL fit.
                 max_output_tokens=self._max_tokens,
                 temperature=0,
             ),
