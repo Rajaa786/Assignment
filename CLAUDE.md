@@ -253,9 +253,15 @@ Internal tool, but still principled:
 - **CORS**: explicit origin allowlist via `CORS_ORIGINS` env var.
   Never `["*"]`.
 - **Rate limit** the LLM endpoint (`10 req/min/IP`) via `slowapi`.
-- **Logs never contain salary amounts.** Log employee IDs and operations.
-  Audit events that include amounts go to a separate sink with restricted
-  read access (documented; not implemented unless in scope).
+- **Logs never contain salary amounts** — with one documented exception.
+  Log employee IDs and operations. Audit events that include amounts go to a
+  separate sink with restricted read access (documented; not implemented unless
+  in scope). **Exception (NL Q&A path):** the `/ask` trace logs the prompt, the
+  model's output, and the executed SQL at **INFO** so the HR manager's query can
+  be debugged from `docker logs` — a generated `WHERE` may name a salary
+  threshold the manager typed. Accepted because this is a single-persona internal
+  tool with no public surface; result **rows** (actual compensation) are still
+  never logged. See `ADR-0013`.
 - **Auth is deliberately out of scope** (see `requirements.md`). The
   production deployment path is IdP-proxy
   (Cloudflare Access / Tailscale / Okta-fronted ALB), not custom auth.

@@ -39,6 +39,18 @@ Logging is **tiered for PII** (the core of this decision):
 - **DEBUG** (`LOG_LEVEL=debug`): the raw candidate SQL (`qa_sql_candidate`). The
   "show me exactly what the model produced" switch; off in production.
 
+> **Amended 2026-06-06 — raw I/O promoted to INFO.** The DEBUG tier above proved
+> impractical for the actual operator (one HR manager debugging their own queries from
+> `docker logs`, which run at INFO). We now log the **model input** (`qa_prompt_built`:
+> system prompt + question), the **model output** (`qa_sql_candidate`: raw pre-guard SQL),
+> and the **executed SQL** (`sql` field on `qa_sql_generated` / `qa_executed` / `qa_cache_hit`)
+> all at **INFO**. This is a deliberate, accepted exception to §8: a generated `WHERE` may
+> echo a salary threshold the manager typed. It is bounded — result **rows** (actual
+> compensation) are still never logged — and acceptable for a single-persona internal tool
+> with no public surface (`ADR-0009`). The "Log everything at INFO" row below was rejected
+> for a *public* service; this app is not one. To quiet it, lower the level or flip
+> `LOG_FORMAT`/`LOG_LEVEL` (now overridable in compose) — the trace structure is unchanged.
+
 Provider/model is surfaced through a new `describe()` method on the `LlmClient` protocol
 (`anthropic:<model>`, `gemini:<model>`, `stub`) so the service never reaches into a
 client's private fields. The generic user-facing message is unchanged (§7).

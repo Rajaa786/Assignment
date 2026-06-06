@@ -114,6 +114,33 @@ def test_ask_emits_request_and_answer_trace(client: TestClient) -> None:
     assert answered["row_count"] == 1
 
 
+def test_ask_logs_prompt_model_output_and_executed_sql_at_info(client: TestClient) -> None:
+    create_employee(client, email="a@acme.test")
+    sql = "SELECT count(*) AS n FROM employees WHERE deleted_at IS NULL"
+    use_stub(sql)
+
+    with capture_logs() as logs:
+        response = client.post("/api/v1/ask", json={"question": "headcount please"})
+
+    assert response.status_code == 200
+
+    # Step 1 — input handed to the model: prompt + question (ADR-0013, INFO).
+    prompt_event = next(e for e in logs if e["event"] == "qa_prompt_built")
+    assert prompt_event["question"] == "headcount please"
+    assert "Table employees" in prompt_event["system_prompt"]  # the real schema prompt
+
+    # Step 2 — raw, pre-guard model output is logged verbatim.
+    candidate = next(e for e in logs if e["event"] == "qa_sql_candidate")
+    assert candidate["sql"] == sql
+
+    # Step 3 — the guard-approved SQL, which is also exactly what executes. The guard
+    # normalizes (e.g. count -> COUNT), so it need not equal the raw candidate.
+    generated = next(e for e in logs if e["event"] == "qa_sql_generated")
+    executed = next(e for e in logs if e["event"] == "qa_executed")
+    assert generated["sql"] == executed["sql"]
+    assert "deleted_at IS NULL" in str(executed["sql"])
+
+
 def test_ask_logs_llm_error_with_type_and_returns_generic_message(client: TestClient) -> None:
     create_employee(client, email="a@acme.test")
     cache: dict[str, str] = {}

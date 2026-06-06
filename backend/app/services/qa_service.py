@@ -4,6 +4,12 @@ Orchestrates the guarded path: check the session cache, otherwise prompt the mod
 **validate the generated SQL through the guard**, execute it read-only with a hard row
 cap, and return the rows. Raw model output and internal errors are never surfaced to the
 user — failures log internally (with the request id) and return a generic message.
+
+Logging note: each step of the path logs at INFO the model *input* (prompt + question),
+the model *output*, and the *executed* SQL, so one ``/ask`` call is fully traceable in
+``docker logs`` without flipping to DEBUG. This is a deliberate, documented exception to
+``CLAUDE.md`` §8 — a generated ``WHERE`` may embed a salary threshold the manager named.
+Row values (actual compensation) are still never logged. See ``ADR-0013``.
 """
 
 from __future__ import annotations
@@ -46,8 +52,9 @@ class QaService:
 
         Emits a request-scoped structured trace (``qa_request_received`` …
         ``qa_answered``); every line carries the request id bound by the middleware, so
-        one ``/ask`` call is followed end to end in the logs. Raw SQL is logged only at
-        ``DEBUG`` (``CLAUDE.md`` §8); INFO carries hashes and counts, never amounts.
+        one ``/ask`` call is followed end to end in the logs. The prompt, model output,
+        and executed SQL are logged at INFO (``ADR-0013``; documented §8 exception);
+        result rows are never logged.
 
         Args:
             question: The HR manager's plain-English question.
@@ -69,7 +76,12 @@ class QaService:
             provider=provider,
         )
 
-        sql = self._sql_for(question, provider, question_sha8)
+        system_prompt = build_system_prompt()
+        # INFO: the full input handed to the model — prompt + question (ADR-0013, §8
+        # exception). The prompt is schema/vocab/rules; it carries no compensation values.
+        logger.info("qa_prompt_built", system_prompt=system_prompt, question=question)
+
+        sql = self._sql_for(question, system_prompt, provider, question_sha8)
         answer = self._execute(question, sql)
 
         logger.info(
@@ -81,17 +93,17 @@ class QaService:
         )
         return answer
 
-    def _sql_for(self, question: str, provider: str, question_sha8: str) -> str:
+    def _sql_for(self, question: str, system_prompt: str, provider: str, question_sha8: str) -> str:
         """Return validated SQL for the question, from cache or a fresh generation."""
         cache_key = hashlib.sha256(question.encode()).hexdigest()
         cached = self._cache.get(cache_key)
         if cached is not None:
-            logger.info("qa_cache_hit", question_sha8=question_sha8)
+            logger.info("qa_cache_hit", question_sha8=question_sha8, sql=cached)
             return cached
 
         started = time.perf_counter()
         try:
-            candidate = self._client.generate_sql(build_system_prompt(), question)
+            candidate = self._client.generate_sql(system_prompt, question)
         except Exception as exc:
             # Deliberately broad: any model/client failure must surface as the generic
             # message, never the raw error (CLAUDE.md §7). The stack trace is logged
@@ -105,9 +117,9 @@ class QaService:
             raise QaUnavailableError(_GENERIC_FAILURE) from exc
 
         llm_latency_ms = _elapsed_ms(started)
-        # DEBUG-only: the raw, pre-guard model output. Off at INFO so a generated
-        # WHERE clause can never echo a salary amount into production logs.
-        logger.debug("qa_sql_candidate", sql=candidate)
+        # INFO: the raw, pre-guard model output (ADR-0013, §8 exception). Visible so the
+        # exact text the model returned can be inspected before the guard rewrites it.
+        logger.info("qa_sql_candidate", provider=provider, sql=candidate)
 
         verdict = validate_sql(candidate)
         if not verdict.allowed or verdict.sql is None:
@@ -118,6 +130,7 @@ class QaService:
             "qa_sql_generated",
             provider=provider,
             llm_latency_ms=llm_latency_ms,
+            sql=verdict.sql,
             sql_chars=len(verdict.sql),
             sql_sha8=_sha8(verdict.sql),
         )
@@ -155,6 +168,7 @@ class QaService:
         )
         logger.info(
             "qa_executed",
+            sql=sql,
             row_count=answer.row_count,
             truncated=truncated,
             db_latency_ms=_elapsed_ms(started),
