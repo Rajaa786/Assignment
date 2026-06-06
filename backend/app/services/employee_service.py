@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, EmployeeNotFoundError
+from app.core.logging import get_logger
 from app.core.pagination import SortDirection
 from app.domain.country import Country
 from app.domain.currency import Currency
@@ -25,6 +26,8 @@ from app.repositories.employee_repository import (
 )
 from app.schemas.common import MoneyOut, Page
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+
+logger = get_logger(__name__)
 
 
 class EmployeeService:
@@ -79,6 +82,12 @@ class EmployeeService:
         employee.employee_code = f"EMP-{employee.id:05d}"
         self._commit()
         self._session.refresh(employee)
+        logger.info(
+            "employee_created",
+            employee_id=employee.id,
+            country=employee.country,
+            department=employee.department,
+        )
         return self._to_response(employee)
 
     def get_employee(self, employee_id: int) -> EmployeeResponse:
@@ -87,7 +96,9 @@ class EmployeeService:
         Raises:
             EmployeeNotFoundError: If no active employee has this id.
         """
-        return self._to_response(self._require_employee(employee_id))
+        employee = self._require_employee(employee_id)
+        logger.info("employee_fetched", employee_id=employee_id)
+        return self._to_response(employee)
 
     def update_employee(self, employee_id: int, data: EmployeeUpdate) -> EmployeeResponse:
         """Apply a partial update, recomputing salary normalization when needed.
@@ -108,6 +119,8 @@ class EmployeeService:
 
         self._commit()
         self._session.refresh(employee)
+        # Field names, never values (CLAUDE.md §8: no salary amounts in logs).
+        logger.info("employee_updated", employee_id=employee.id, fields=sorted(changes))
         return self._to_response(employee)
 
     def delete_employee(self, employee_id: int) -> None:
@@ -119,6 +132,7 @@ class EmployeeService:
         employee = self._require_employee(employee_id)
         self._writer.soft_delete(employee)
         self._commit()
+        logger.info("employee_deleted", employee_id=employee_id)
 
     def list_employees(
         self,
@@ -134,6 +148,7 @@ class EmployeeService:
             filters, sort_by=sort_by, sort_dir=sort_dir, cursor=cursor, limit=limit
         )
         total = self._reader.count(filters)
+        logger.info("employees_listed", count=total, limit=limit)
         return Page(
             items=[self._to_response(row) for row in rows],
             next_cursor=next_cursor,

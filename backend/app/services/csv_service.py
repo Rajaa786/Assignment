@@ -17,6 +17,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
+from app.core.logging import get_logger
 from app.domain.country import Country
 from app.domain.currency import Currency
 from app.domain.currency_converter import CurrencyConverter
@@ -25,6 +26,8 @@ from app.models.employee import Employee
 from app.repositories.employee_repository import EmployeeFilters
 from app.schemas.employee import EmployeeCreate
 from app.schemas.imports import ImportResult, ImportRowError
+
+logger = get_logger(__name__)
 
 MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -89,6 +92,7 @@ class EmployeeCsvService:
         Raises:
             ValidationError: If the file is too large or its header is wrong.
         """
+        logger.info("csv_import_started", dry_run=dry_run, size_bytes=len(content))
         if len(content) > MAX_CSV_SIZE_BYTES:
             raise ValidationError("CSV file exceeds the 10 MB limit.")
 
@@ -114,11 +118,20 @@ class EmployeeCsvService:
             self._repository.bulk_insert(self._build_rows(valid))
             self._session.commit()
 
+        inserted = len(valid) if should_insert else 0
+        logger.info(
+            "csv_import_completed",
+            dry_run=dry_run,
+            total=total,
+            valid=len(valid),
+            failed=len(errors),
+            inserted=inserted,
+        )
         return ImportResult(
             total=total,
             valid=len(valid),
             failed=len(errors),
-            inserted=len(valid) if should_insert else 0,
+            inserted=inserted,
             dry_run=dry_run,
             errors=errors,
         )
@@ -137,9 +150,12 @@ class EmployeeCsvService:
         writer.writerow(_EXPORT_COLUMNS)
         yield take()
 
+        row_count = 0
         for employee in self._repository.iter_filtered(filters):
             writer.writerow(self._export_row(employee))
+            row_count += 1
             yield take()
+        logger.info("csv_export_completed", row_count=row_count)
 
     def _validate_row(
         self, row_number: int, raw: dict[str, str | None], seen_emails: set[str]

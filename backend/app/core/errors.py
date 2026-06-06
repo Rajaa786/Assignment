@@ -99,12 +99,24 @@ class QaUnavailableError(AppError):
     status_code = 422
 
 
-async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
+async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     """Map a typed :class:`AppError` to its envelope and HTTP status."""
+    # Server-side faults are errors; client-side (4xx) are warnings. The detailed
+    # cause for QA failures is already logged in the service; this is the HTTP record.
+    log = logger.error if exc.status_code >= 500 else logger.warning
+    log(
+        "app_error",
+        code=exc.code,
+        status_code=exc.status_code,
+        path=request.url.path,
+        method=request.method,
+    )
     return JSONResponse(status_code=exc.status_code, content=exc.to_envelope().model_dump())
 
 
-async def handle_request_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+async def handle_request_validation_error(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Map FastAPI's request-schema validation failure to the standard envelope.
 
     Only the location, message, and type of each error are surfaced. The raw
@@ -115,6 +127,12 @@ async def handle_request_validation_error(_: Request, exc: RequestValidationErro
         {"loc": list(error["loc"]), "msg": error["msg"], "type": error["type"]}
         for error in exc.errors()
     ]
+    logger.warning(
+        "request_validation_failed",
+        path=request.url.path,
+        method=request.method,
+        errors=sanitized,
+    )
     body = ErrorBody(
         code="request.invalid",
         message="The request body or parameters failed validation.",
@@ -123,8 +141,9 @@ async def handle_request_validation_error(_: Request, exc: RequestValidationErro
     return JSONResponse(status_code=422, content=ErrorEnvelope(error=body).model_dump())
 
 
-async def handle_invalid_cursor_error(_: Request, exc: InvalidCursorError) -> JSONResponse:
+async def handle_invalid_cursor_error(request: Request, exc: InvalidCursorError) -> JSONResponse:
     """Map a malformed pagination cursor to a 422 with a stable error code."""
+    logger.warning("invalid_cursor", path=request.url.path, method=request.method)
     body = ErrorBody(code="pagination.invalid_cursor", message=str(exc))
     return JSONResponse(status_code=422, content=ErrorEnvelope(error=body).model_dump())
 

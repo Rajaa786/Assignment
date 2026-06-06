@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from app.core.logging import get_logger
 from app.domain.currency import Currency
 from app.repositories.analytics_repository import AnalyticsReader, SalaryRow
 from app.schemas.analytics import (
@@ -23,6 +24,8 @@ from app.schemas.analytics import (
     SummaryResponse,
 )
 from app.schemas.common import MoneyOut
+
+logger = get_logger(__name__)
 
 # Salary histogram bands in USD major units; the final band is open-ended.
 _DISTRIBUTION_BOUNDS_USD = (0, 50_000, 100_000, 150_000, 200_000, 300_000)
@@ -55,6 +58,7 @@ class AnalyticsService:
     def summary(self) -> SummaryResponse:
         """Return headcount, total payroll, and the mean and median salary (USD)."""
         salaries = [row.usd_minor for row in self._reader.active_salary_rows()]
+        logger.info("analytics_summary_computed", headcount=len(salaries))
         return SummaryResponse(
             headcount=len(salaries),
             total_payroll_usd=self._money(sum(salaries)),
@@ -78,6 +82,7 @@ class AnalyticsService:
             for key, salaries in grouped.items()
         ]
         stats.sort(key=lambda stat: stat.total_usd.minor_units, reverse=True)
+        logger.info("analytics_by_dimension_computed", dimension=dimension, groups=len(stats))
         return ByDimensionResponse(dimension=dimension, groups=stats)
 
     def distribution(self) -> DistributionResponse:
@@ -96,6 +101,7 @@ class AnalyticsService:
                 if value >= lower_minor and (upper_minor is None or value < upper_minor)
             )
             buckets.append(DistributionBucket(lower_usd=lower, upper_usd=upper, count=count))
+        logger.info("analytics_distribution_computed", buckets=len(buckets))
         return DistributionResponse(buckets=buckets)
 
     def pay_equity(self, dimension: Dimension) -> PayEquityResponse:
@@ -116,6 +122,7 @@ class AnalyticsService:
             for key, salaries in grouped.items()
         ]
         groups.sort(key=lambda group: group.median_usd.minor_units, reverse=True)
+        logger.info("analytics_pay_equity_computed", dimension=dimension, groups=len(groups))
         return PayEquityResponse(
             dimension=dimension,
             overall_median_usd=self._money(overall_median),
