@@ -22,18 +22,19 @@ flowchart LR
     SV --> LLM[llm/ NL→SQL + guard]
     RP --> ORM[(SQLAlchemy 2.0)]
   end
-  ANTHROPIC[Anthropic API]
+  PROVIDER[LLM provider<br/>Anthropic · Gemini · offline stub]
   DB[(SQLite dev / Postgres prod)]
 
   HR --> WEB
   WEB -- JSON over HTTPS --> PROXY -. prod only .-> RT
   WEB -- "local dev" --> RT
-  LLM -- prompt --> ANTHROPIC
+  LLM -- "prompt (provider chosen by env)" --> PROVIDER
   ORM --> DB
 ```
 
 Auth is intentionally the proxy's job, not the app's (`ADR-0009`). Locally the browser talks
-to the API directly.
+to the API directly. The LLM provider is pluggable behind one protocol, selected by env, with
+a safe offline stub when no key is set (`ADR-0012`).
 
 ## 2. Layered architecture & dependency rule
 
@@ -53,11 +54,13 @@ Dependencies point **one way only**: an inner layer never imports an outer one. 
 - **`repositories/`** — the only layer that speaks SQLAlchemy. Builds queries, applies filters /
   cursor pagination / eager loading. Returns ORM objects and primitives; never imports Pydantic.
 - **`models/`** — persistence shape (`Mapped[...]` declarative).
-- **`domain/`** — pure, immutable value objects (`Money`, `EmployeeId`, `Country`,
-  `Compensation`). No framework imports. This is where money arithmetic and currency rules live.
+- **`domain/`** — pure, immutable value objects (`Money`, `Currency`, `EmployeeId`, `Country`).
+  No framework imports. This is where money arithmetic and currency rules live. (A `Compensation`
+  aggregate was considered but deferred — single base salary is the current scope; `CLAUDE.md` §3.)
 - **`core/`** — config, engine/session factory, structured logging, error envelope, middleware.
-- **`llm/`** — prompt building, the SQL guard (a parser, not a regex), and the Anthropic client
-  wrapper. Isolated so the highest-risk surface has one home.
+- **`llm/`** — prompt building, the SQL guard (a parser, not a regex), and the provider-pluggable
+  LLM client (Anthropic / Gemini / stub, chosen by a small factory; `ADR-0012`). Isolated so the
+  highest-risk surface has one home.
 
 Why this shape: it makes the business logic unit-testable with a fake repository (no DB), keeps
 the SQL injection-free in one layer, and lets a new engineer find any concern by its folder name.
@@ -128,25 +131,35 @@ sequenceDiagram
   participant R as api/ask
   participant S as QaService
   participant G as SqlGuard
-  participant L as LLM client
+  participant L as LLM client<br/>(env-selected)
   participant DB as read-only conn
   W->>R: POST /api/v1/ask {question}
   R->>S: respond_to_natural_language_query(question)
+  Note over S: log qa_request_received
   S->>S: cache hit? return cached SQL
-  S->>L: prompt(schema + samples + "SELECT only")
+  S->>L: prompt(schema + vocab + "SELECT only") + question
+  Note over S: log qa_prompt_built (prompt + question)
   L-->>S: candidate SQL
+  Note over S: log qa_sql_candidate (raw model output)
   S->>G: validate(sql)
   alt rejected (DDL/DML/multi-stmt/bad table/bad fn)
     G-->>S: GuardRejection
+    Note over S: log qa_sql_rejected (warning)
     S-->>R: generic "couldn't answer — rephrase"
   else accepted
     G-->>S: ok
+    Note over S: log qa_sql_generated (executed SQL)
     S->>DB: execute (5s timeout, 1000-row cap)
     DB-->>S: rows
+    Note over S: log qa_executed → qa_answered
     S-->>R: QueryAnswer(rows, the_sql)
   end
   R-->>W: answer (raw LLM errors never surfaced)
 ```
+
+Every event above carries the request's `request_id`. The prompt, the model's raw output, and
+the executed SQL are logged at **INFO** (`ADR-0013`) — a documented exception to "no amounts in
+logs" (§8): result **rows** are never logged, only the query text.
 
 ## 5. Cross-cutting
 
@@ -154,7 +167,11 @@ sequenceDiagram
   HTTP status carries the class. Raised as typed exceptions in services, mapped to envelopes by a
   single exception handler in `core/`.
 - **Observability:** request-ID middleware stamps every log line and the `X-Request-ID` header;
-  structured JSON logs in prod, console locally; **salary amounts are never logged**.
+  structlog with `LOG_FORMAT=console` (default, readable) or `json` (prod-like), `LOG_LEVEL`
+  configurable. Operation/flow events across the API (`ADR-0014`) and a staged `/ask` trace
+  (`ADR-0013`). **Salary amounts are never logged — with one documented exception:** the `/ask`
+  trace logs the prompt, model output, and executed SQL at INFO (a generated `WHERE` may name a
+  threshold); result rows are still never logged.
 - **Health:** `/healthz` (process alive) and `/readyz` (DB reachable + migrations current) for
   the platform's routing checks.
 - **Config:** a single `Settings` (pydantic-settings) reads env; the `DATABASE_URL` driver picks
