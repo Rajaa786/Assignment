@@ -9,7 +9,11 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/acme_salary.db
       CORS_ORIGINS: http://localhost:8080
-      LOG_FORMAT: json
+      # Logging is overridable from the root .env (parity with the LLM vars below).
+      # Default json for machine-parseable prod-like logs; set LOG_FORMAT=console for
+      # readable `docker logs`. LOG_LEVEL=debug widens the trace further.
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SEED_ON_STARTUP: "true"
       # LLM config passed through from a gitignored root .env (or the host env).
       # Empty keys -> the app uses a safe offline stub. Never commit real keys.
