@@ -623,6 +623,7 @@ must exist **before or with** the code that implements it:
 | 0010 | shadcn/ui over Material UI / Chakra |
 | 0011 | Publish images to GHCR + auto-seed for zero-effort reviewer onboarding |
 | 0012 | Pluggable LLM provider (Strategy/factory) — Anthropic default, Gemini optional |
+| 0013 | Request-scoped structured tracing for the QA path (PII-tiered logging) |
 
 If you make a decision during the build that meets the ADR-worthy bar
 and isn't on this list, **create one and update this table in the same

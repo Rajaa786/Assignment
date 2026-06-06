@@ -5,7 +5,10 @@ and a colorized console renderer locally. The request-ID middleware binds a
 ``request_id`` into the context so every line emitted during a request carries it.
 
 Policy: **salary amounts are never logged.** Log employee IDs and operations, not
-compensation values (``CLAUDE.md`` §8).
+compensation values (``CLAUDE.md`` §8). On the Q&A path this is tiered: INFO carries
+question/SQL *hashes* and row counts, while the raw model-generated SQL — which could
+echo a threshold amount in a ``WHERE`` clause — is emitted only at ``DEBUG``
+(``LOG_LEVEL=debug``) for deliberate debugging.
 """
 
 from __future__ import annotations
@@ -33,11 +36,16 @@ def configure_logging() -> None:
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
     ]
-    renderer: structlog.types.Processor = (
-        structlog.processors.JSONRenderer()
-        if settings.log_format == "json"
-        else structlog.dev.ConsoleRenderer()
-    )
+    # JSON output needs ``exc_info`` rendered into a string ``exception`` field;
+    # ConsoleRenderer formats exceptions itself (with color), so it keeps the raw
+    # ``exc_info``. Without this, a ``logger.warning(..., exc_info=exc)`` would not
+    # serialize as JSON in the container.
+    renderer: structlog.types.Processor
+    if settings.log_format == "json":
+        shared_processors.append(structlog.processors.format_exc_info)
+        renderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.dev.ConsoleRenderer()
 
     structlog.configure(
         processors=[*shared_processors, renderer],

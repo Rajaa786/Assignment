@@ -27,6 +27,10 @@ class LlmClient(Protocol):
         """Return candidate SQL for the question (unvalidated, untrusted)."""
         ...
 
+    def describe(self) -> str:
+        """Return a short ``provider:model`` label for logs (carries no secret)."""
+        ...
+
 
 class AnthropicLlmClient:
     """LlmClient backed by the Anthropic Messages API.
@@ -53,6 +57,10 @@ class AnthropicLlmClient:
         )
         parts = [block.text for block in message.content if block.type == "text"]
         return "".join(parts).strip()
+
+    def describe(self) -> str:
+        """Return an ``anthropic:<model>`` label for structured logs."""
+        return f"anthropic:{self._model}"
 
 
 class GeminiLlmClient:
@@ -85,6 +93,10 @@ class GeminiLlmClient:
         )
         return (response.text or "").strip()
 
+    def describe(self) -> str:
+        """Return a ``gemini:<model>`` label for structured logs."""
+        return f"gemini:{self._model}"
+
 
 class StubLlmClient:
     """Deterministic LlmClient for local dev and tests.
@@ -99,6 +111,10 @@ class StubLlmClient:
     def generate_sql(self, system_prompt: str, question: str) -> str:
         """Return canned SQL for the question."""
         return self._responder(question)
+
+    def describe(self) -> str:
+        """Return the ``stub`` label so logs show the offline client is active."""
+        return "stub"
 
     @staticmethod
     def _default(question: str) -> str:

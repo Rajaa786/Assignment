@@ -58,6 +58,12 @@ def test_explicit_stub_is_always_the_stub() -> None:
     assert isinstance(client, StubLlmClient)
 
 
+def test_describe_surfaces_provider_and_model_for_logs() -> None:
+    assert AnthropicLlmClient("k", "claude-haiku-4-5").describe() == "anthropic:claude-haiku-4-5"
+    assert GeminiLlmClient("k", "gemini-2.5-flash").describe() == "gemini:gemini-2.5-flash"
+    assert StubLlmClient().describe() == "stub"
+
+
 def test_gemini_client_calls_the_sdk_and_returns_trimmed_text() -> None:
     fake_response = MagicMock(text="  SELECT 1  ")
     fake_client = MagicMock()

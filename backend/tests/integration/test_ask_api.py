@@ -6,6 +6,7 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from structlog.testing import capture_logs
 
 from app.api.dependencies import get_llm_client, get_qa_cache
 from app.main import app
@@ -22,6 +23,20 @@ class SpyStubLlmClient:
     def generate_sql(self, system_prompt: str, question: str) -> str:
         self.calls += 1
         return self._sql
+
+    def describe(self) -> str:
+        # Honor the LlmClient protocol so the service can log the provider (Liskov, §13).
+        return "stub"
+
+
+class BoomLlmClient:
+    """Stub LLM that always raises, to exercise the error-trace path."""
+
+    def generate_sql(self, system_prompt: str, question: str) -> str:
+        raise RuntimeError("model exploded")
+
+    def describe(self) -> str:
+        return "stub"
 
 
 def use_stub(sql: str) -> SpyStubLlmClient:
@@ -79,3 +94,39 @@ def test_blank_question_is_rejected_by_validation(client: TestClient) -> None:
     response = client.post("/api/v1/ask", json={"question": "  "})
 
     assert response.status_code == 422
+
+
+def test_ask_emits_request_and_answer_trace(client: TestClient) -> None:
+    create_employee(client, email="a@acme.test")
+    use_stub("SELECT count(*) AS n FROM employees WHERE deleted_at IS NULL")
+
+    with capture_logs() as logs:
+        response = client.post("/api/v1/ask", json={"question": "headcount please"})
+
+    assert response.status_code == 200
+    events = [entry["event"] for entry in logs]
+    assert "qa_request_received" in events
+    assert "qa_answered" in events
+
+    received = next(e for e in logs if e["event"] == "qa_request_received")
+    assert received["provider"] == "stub"
+    answered = next(e for e in logs if e["event"] == "qa_answered")
+    assert answered["row_count"] == 1
+
+
+def test_ask_logs_llm_error_with_type_and_returns_generic_message(client: TestClient) -> None:
+    create_employee(client, email="a@acme.test")
+    cache: dict[str, str] = {}
+    app.dependency_overrides[get_llm_client] = lambda: BoomLlmClient()
+    app.dependency_overrides[get_qa_cache] = lambda: cache
+
+    with capture_logs() as logs:
+        response = client.post("/api/v1/ask", json={"question": "anything"})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "qa.unavailable"
+
+    errors = [e for e in logs if e["event"] == "qa_llm_error"]
+    assert errors, "expected a qa_llm_error trace event"
+    assert errors[0]["error_type"] == "RuntimeError"
+    assert errors[0]["provider"] == "stub"

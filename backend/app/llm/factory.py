@@ -57,14 +57,18 @@ def build_llm_client(settings: Settings) -> LlmClient:
     """Return the LLM client for the configured provider (never raises on missing keys)."""
     provider = settings.llm_provider
 
+    # The happy-path selection is logged at DEBUG: the client is built per request, so
+    # an INFO line here would repeat on every /ask. Per-request provider visibility lives
+    # in the `qa_request_received` event. Misconfiguration (no/absent key) stays louder.
     if provider == "stub":
+        logger.debug("llm_provider_selected", provider="stub")
         return StubLlmClient()
 
     if provider == "auto":
         for name in _AUTO_ORDER:
             client = _BUILDERS[name](settings)
             if client is not None:
-                logger.info("llm_provider_selected", provider=name)
+                logger.debug("llm_provider_selected", provider=name)
                 return client
         logger.info("llm_no_api_key_configured_using_stub")
         return StubLlmClient()
@@ -73,5 +77,5 @@ def build_llm_client(settings: Settings) -> LlmClient:
     if client is None:
         logger.warning("llm_provider_missing_key_using_stub", provider=provider)
         return StubLlmClient()
-    logger.info("llm_provider_selected", provider=provider)
+    logger.debug("llm_provider_selected", provider=provider)
     return client
