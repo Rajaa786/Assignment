@@ -51,7 +51,11 @@ Valid values:
 
 Rules:
 - A single SELECT statement only. Never INSERT/UPDATE/DELETE/DDL/PRAGMA.
-- Only these functions: avg, min, max, sum, count, round, coalesce, lower, upper.
+- Allowed functions: avg, min, max, sum, count, round, coalesce, lower, upper, and the
+  window functions row_number, rank, dense_rank, ntile, percent_rank, cume_dist, lag,
+  lead, first_value, last_value (used with OVER (...)).
+- CTEs (WITH ... AS (...)) and subqueries are allowed. For "top N%" / ranking / percentile
+  questions, prefer NTILE or PERCENT_RANK over a CTE.
 - Always filter out soft-deleted rows with: deleted_at IS NULL.
 - Salaries are MINOR units; for dollar amounts compute base_salary_usd_minor / 100.0.
 - For cross-country comparison use base_salary_usd_minor, not base_salary_minor.

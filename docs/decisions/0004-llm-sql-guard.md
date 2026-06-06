@@ -24,6 +24,18 @@ We will let the LLM generate **SQL only**, and defend in depth:
    `SELECT`/`UNION` over a table whitelist (`employees`, `fx_rates`), using only an allowlist of
    functions (`avg, min, max, sum, count, round, coalesce, lower, upper`), with no DDL/DML, no
    multiple statements, no comments, and no system catalogs. Deny by default.
+
+   > **Amended 2026-06-06 — CTEs + window functions allowed.** Real analytical questions ("which
+   > department is overrepresented in the top 10% earners?") naturally need ranking/percentile SQL.
+   > The allowlist now includes the read-only window functions (`row_number, rank, dense_rank,
+   > ntile, percent_rank, cume_dist, lag, lead, first_value, last_value`, used with `OVER (...)`),
+   > and CTE names (`WITH x AS (...)`) are resolved as local aliases rather than rejected as
+   > unknown tables. **Security is unchanged in kind:** still single `SELECT`-only, read-only role,
+   > row/time caps; a CTE body is still walked, so `WITH t AS (SELECT * FROM users)` is rejected on
+   > the inner `users` reference (adversarial tests cover CTE-masking of `users`/`sqlite_master`).
+   > Two earlier bugs were also fixed alongside: sqlglot models boolean `AND`/`OR` as `Func`
+   > subclasses (they were wrongly rejected — now operator nodes are skipped), and gemini-2.5-flash
+   > truncated SQL under a 512-token output budget (raised so reasoning + SQL both fit).
 2. **Read-only execution** with a hard 1000-row cap (and a statement timeout in production, where
    the query runs under a read-only database role with `SELECT`-only grants).
 3. **No leakage.** Raw model output and internal errors are never returned; failures log internally

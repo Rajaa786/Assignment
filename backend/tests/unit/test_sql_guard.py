@@ -22,6 +22,13 @@ ALLOWED_QUERIES = [
     "SELECT count(*) FROM employees WHERE country = 'US' OR country = 'GB'",
     "SELECT department, count(*) FROM employees WHERE deleted_at IS NULL "
     "GROUP BY department HAVING count(*) > 5 AND avg(base_salary_usd_minor) < 100000000",
+    # CTEs + window functions are allowed (ranking / "top 10%" questions).
+    "WITH ranked AS (SELECT department, NTILE(10) OVER (ORDER BY base_salary_usd_minor DESC) "
+    "AS pct FROM employees WHERE deleted_at IS NULL) "
+    "SELECT department, count(*) FROM ranked WHERE pct = 1 GROUP BY department",
+    "SELECT department, base_salary_usd_minor, "
+    "ROW_NUMBER() OVER (PARTITION BY department ORDER BY base_salary_usd_minor DESC) AS rn "
+    "FROM employees WHERE deleted_at IS NULL",
 ]
 
 REJECTED_QUERIES = [
@@ -40,6 +47,9 @@ REJECTED_QUERIES = [
     "ATTACH DATABASE 'x.db' AS x",
     "",
     "SELECT base_salary_minor FROM employees WHERE id = (SELECT id FROM users)",
+    # A CTE must not become a back door to a disallowed table or system catalog.
+    "WITH leak AS (SELECT * FROM users) SELECT * FROM leak",
+    "WITH leak AS (SELECT * FROM sqlite_master) SELECT * FROM leak",
 ]
 
 

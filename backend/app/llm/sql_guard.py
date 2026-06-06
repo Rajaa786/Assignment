@@ -18,9 +18,32 @@ from sqlglot import exp
 # is not on this list and is therefore rejected.
 ALLOWED_TABLES = frozenset({"employees", "fx_rates"})
 
-# The only SQL functions permitted in generated queries.
+# The only SQL functions permitted in generated queries. Aggregates/scalars plus the
+# read-only window functions needed for ranking/percentile questions (e.g. "top 10%").
+# All are pure read operations; the OVER clause itself carries no extra privilege.
 ALLOWED_FUNCTIONS = frozenset(
-    {"avg", "min", "max", "sum", "count", "round", "coalesce", "lower", "upper"}
+    {
+        "avg",
+        "min",
+        "max",
+        "sum",
+        "count",
+        "round",
+        "coalesce",
+        "lower",
+        "upper",
+        # Window functions (used with OVER (...)).
+        "row_number",
+        "rank",
+        "dense_rank",
+        "ntile",
+        "percent_rank",
+        "cume_dist",
+        "lag",
+        "lead",
+        "first_value",
+        "last_value",
+    }
 )
 
 # AST node types that must never appear (DDL/DML and out-of-band commands).
@@ -94,8 +117,13 @@ def validate_sql(sql: str) -> GuardResult:
         if isinstance(node, _FORBIDDEN_NODES):
             return _reject(f"forbidden operation: {type(node).__name__}")
 
+    # CTE names (WITH x AS (...)) are local aliases, not base tables — allow references
+    # to them. Their bodies are still walked, so a CTE selecting from a disallowed real
+    # table (e.g. WITH t AS (SELECT * FROM users)) is still rejected below.
+    cte_names = {cte.alias_or_name.lower() for cte in statement.find_all(exp.CTE)}
+    allowed_tables = ALLOWED_TABLES | cte_names
     for table in statement.find_all(exp.Table):
-        if table.name.lower() not in ALLOWED_TABLES:
+        if table.name.lower() not in allowed_tables:
             return _reject(f"table not allowed: {table.name}")
 
     for function in statement.find_all(exp.Func):
