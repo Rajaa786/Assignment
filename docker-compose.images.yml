@@ -3,11 +3,11 @@
 #   docker compose -f docker-compose.images.yml up
 #   -> open http://localhost:8080   (auto-seeded with 10,000 employees on first start)
 #
-# Replace OWNER below with the GitHub username/org that owns the images, or pass it
-# at runtime:  GHCR_OWNER=<owner> docker compose -f docker-compose.images.yml up
+# Images default to this repo's owner (rajaa786). Override for a fork at runtime:
+#   GHCR_OWNER=<owner> docker compose -f docker-compose.images.yml up
 services:
   api:
-    image: ghcr.io/${GHCR_OWNER:-OWNER}/acme-salary-api:latest
+    image: ghcr.io/${GHCR_OWNER:-rajaa786}/acme-salary-api:latest
     environment:
       DATABASE_URL: sqlite:////data/acme_salary.db
       CORS_ORIGINS: http://localhost:8080
@@ -28,7 +28,7 @@ services:
       - "8000:8000"
 
   web:
-    image: ghcr.io/${GHCR_OWNER:-OWNER}/acme-salary-web:latest
+    image: ghcr.io/${GHCR_OWNER:-rajaa786}/acme-salary-web:latest
     depends_on:
       - api
     ports:

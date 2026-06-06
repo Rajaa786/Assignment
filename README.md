@@ -36,13 +36,14 @@ Pulls published images from GHCR and starts the full stack, **auto-seeded with 1
 employees** on first boot. The only file you need is `docker-compose.images.yml`.
 
 ```bash
-curl -O https://raw.githubusercontent.com/OWNER/REPO/main/docker-compose.images.yml
+curl -O https://raw.githubusercontent.com/Rajaa786/Assignment/main/docker-compose.images.yml
 docker compose -f docker-compose.images.yml up
 # open http://localhost:8080     ·     API docs at http://localhost:8000/docs
 ```
 
-_(Replace `OWNER/REPO` with this repository's path. Images: `ghcr.io/OWNER/acme-salary-api`
-and `…-web`.)_
+_(Images: `ghcr.io/rajaa786/acme-salary-api` and `…-web`, built from this repo by
+[`release-images.yml`](.github/workflows/release-images.yml). `docker-compose.images.yml`
+already defaults to this owner.)_
 
 For real LLM Q&A on this path (no repo checkout, so no `.env.example`), pass your key
 inline or drop a `.env` next to the file:
@@ -159,5 +160,9 @@ docs/           architecture diagram, ADRs, AI workflow, performance notes
 
 ## Live demo & video
 
-- **App:** _deploy step — link added in README on deploy_
+- **App:** https://acme-salary-web.vercel.app (Vercel — Hobby/free)
+- **API:** https://acme-salary-api-rajaa.fly.dev · docs at [`/docs`](https://acme-salary-api-rajaa.fly.dev/docs) (Fly.io — `bom`, scale-to-zero)
 - **Demo video:** _link added after recording_
+
+> The API scales to zero when idle, so the first request after a quiet period cold-starts
+> it (~a few seconds). NL Q&A on the live demo uses Gemini.
