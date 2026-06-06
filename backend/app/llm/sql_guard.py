@@ -99,6 +99,13 @@ def validate_sql(sql: str) -> GuardResult:
             return _reject(f"table not allowed: {table.name}")
 
     for function in statement.find_all(exp.Func):
+        # sqlglot models boolean/comparison/arithmetic operators (AND, OR, =, +, …) as
+        # Func subclasses via Connector/Binary/Unary. Those are operators, not callable
+        # functions, so they bypass the allowlist — a genuine function call is never a
+        # Connector/Binary/Unary (e.g. load_extension parses as exp.Anonymous). Without
+        # this, any query with a WHERE ... AND ... is wrongly rejected.
+        if isinstance(function, exp.Connector | exp.Binary | exp.Unary):
+            continue
         name = _function_name(function)
         if name not in ALLOWED_FUNCTIONS:
             return _reject(f"function not allowed: {name}")

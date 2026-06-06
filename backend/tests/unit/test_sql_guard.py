@@ -15,6 +15,13 @@ ALLOWED_QUERIES = [
     "SELECT round(avg(base_salary_usd_minor) / 100.0, 2) FROM employees",
     "SELECT * FROM fx_rates",
     "SELECT country, sum(base_salary_usd_minor) FROM employees GROUP BY country",
+    # Boolean/comparison operators in WHERE/HAVING must pass: sqlglot models AND/OR as
+    # Func subclasses, which previously tripped the function allowlist (regression).
+    "SELECT department, avg(base_salary_usd_minor) FROM employees "
+    "WHERE deleted_at IS NULL AND country = 'IN' GROUP BY department",
+    "SELECT count(*) FROM employees WHERE country = 'US' OR country = 'GB'",
+    "SELECT department, count(*) FROM employees WHERE deleted_at IS NULL "
+    "GROUP BY department HAVING count(*) > 5 AND avg(base_salary_usd_minor) < 100000000",
 ]
 
 REJECTED_QUERIES = [
