@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import csv
+import io
+
 from fastapi.testclient import TestClient
 
 from tests.integration.test_employees_api import create_employee
@@ -53,12 +56,17 @@ def test_import_with_a_bad_row_persists_nothing(client: TestClient) -> None:
 
 
 def test_export_streams_csv_of_current_employees(client: TestClient) -> None:
-    create_employee(client, email="ada@acme.test", last_name="Lovelace")
+    create_employee(client, email="ada@acme.test", last_name="Lovelace", hire_date="2021-06-01")
 
     response = client.get("/api/v1/employees/export")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
-    body = response.text
-    assert body.splitlines()[0].startswith("employee_code,")
-    assert "ada@acme.test" in body
+
+    header, *rows = list(csv.reader(io.StringIO(response.text)))
+    assert header[0] == "employee_code"
+    assert "hire_date" in header
+    # Every data row must line up 1:1 with the header — no column drift.
+    record = dict(zip(header, rows[0], strict=True))
+    assert record["email"] == "ada@acme.test"
+    assert record["hire_date"] == "2021-06-01"

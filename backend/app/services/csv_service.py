@@ -44,9 +44,18 @@ CSV_COLUMNS = (
     "base_salary_amount",
     "hire_date",
 )
+# Export columns, in the exact order _export_row yields values. Written out in full
+# (rather than sliced from CSV_COLUMNS) so the header can never drift from the row.
 _EXPORT_COLUMNS = (
     "employee_code",
-    *CSV_COLUMNS[:-1],  # everything except base_salary_amount keeps its place
+    "first_name",
+    "last_name",
+    "email",
+    "department",
+    "job_title",
+    "level",
+    "employment_type",
+    "country",
     "currency",
     "base_salary_amount",
     "base_salary_usd",
