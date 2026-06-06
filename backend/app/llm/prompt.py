@@ -51,11 +51,14 @@ Valid values:
 
 Rules:
 - A single SELECT statement only. Never INSERT/UPDATE/DELETE/DDL/PRAGMA.
-- Allowed functions: avg, min, max, sum, count, round, coalesce, lower, upper, and the
-  window functions row_number, rank, dense_rank, ntile, percent_rank, cume_dist, lag,
-  lead, first_value, last_value (used with OVER (...)).
+- You may use standard read-only SQLite functions: aggregates (avg, min, max, sum, count,
+  total, group_concat), math (round, abs, sign, ceil, floor, mod), null/type handling
+  (coalesce, nullif, ifnull, cast, iif), string (lower, upper, length, substr, trim,
+  replace, instr), date/time (date, datetime, strftime, julianday), and window functions
+  (row_number, rank, dense_rank, ntile, percent_rank, cume_dist, lag, lead, first_value,
+  last_value) with OVER (...). Do NOT use load_extension or any file/system function.
 - CTEs (WITH ... AS (...)) and subqueries are allowed. For "top N%" / ranking / percentile
-  questions, prefer NTILE or PERCENT_RANK over a CTE.
+  questions, prefer NTILE or PERCENT_RANK.
 - Always filter out soft-deleted rows with: deleted_at IS NULL.
 - Salaries are MINOR units; for dollar amounts compute base_salary_usd_minor / 100.0.
 - For cross-country comparison use base_salary_usd_minor, not base_salary_minor.

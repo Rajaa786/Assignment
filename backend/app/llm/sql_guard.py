@@ -18,21 +18,55 @@ from sqlglot import exp
 # is not on this list and is therefore rejected.
 ALLOWED_TABLES = frozenset({"employees", "fx_rates"})
 
-# The only SQL functions permitted in generated queries. Aggregates/scalars plus the
-# read-only window functions needed for ranking/percentile questions (e.g. "top 10%").
-# All are pure read operations; the OVER clause itself carries no extra privilege.
+# Functions permitted in generated queries — an allowlist of pure, deterministic,
+# read-only SQLite built-ins covering the analytics the HR manager actually asks for
+# (aggregate / math / string / date / type / window). Deny by default: anything not
+# here is rejected. Deliberately EXCLUDED — keep them out: load_extension (code exec),
+# randomblob / zeroblob (memory DoS), random / randomblob (non-determinism), readfile /
+# writefile / edit (file I/O), and sqlite_* / fts* (catalog & extension introspection).
 ALLOWED_FUNCTIONS = frozenset(
     {
+        # Aggregates
         "avg",
         "min",
         "max",
         "sum",
         "count",
+        "total",
+        "group_concat",
+        # Math / numeric
         "round",
+        "abs",
+        "sign",
+        "ceil",
+        "ceiling",
+        "floor",
+        "mod",
+        # Null / type handling
         "coalesce",
+        "nullif",
+        "ifnull",
+        "cast",
+        "iif",
+        # String
         "lower",
         "upper",
-        # Window functions (used with OVER (...)).
+        "length",
+        "substr",
+        "substring",
+        "trim",
+        "ltrim",
+        "rtrim",
+        "replace",
+        "instr",
+        # Date / time (for hire_date analysis)
+        "date",
+        "time",
+        "datetime",
+        "julianday",
+        "strftime",
+        "unixepoch",
+        # Window functions (used with OVER (...))
         "row_number",
         "rank",
         "dense_rank",
@@ -43,6 +77,7 @@ ALLOWED_FUNCTIONS = frozenset(
         "lead",
         "first_value",
         "last_value",
+        "nth_value",
     }
 )
 
@@ -127,12 +162,13 @@ def validate_sql(sql: str) -> GuardResult:
             return _reject(f"table not allowed: {table.name}")
 
     for function in statement.find_all(exp.Func):
-        # sqlglot models boolean/comparison/arithmetic operators (AND, OR, =, +, …) as
-        # Func subclasses via Connector/Binary/Unary. Those are operators, not callable
-        # functions, so they bypass the allowlist — a genuine function call is never a
-        # Connector/Binary/Unary (e.g. load_extension parses as exp.Anonymous). Without
-        # this, any query with a WHERE ... AND ... is wrongly rejected.
-        if isinstance(function, exp.Connector | exp.Binary | exp.Unary):
+        # sqlglot models operators and control-flow as Func subclasses: boolean/
+        # comparison/arithmetic operators (AND, OR, =, +, …) via Connector/Binary/Unary,
+        # and CASE/IIF via Case/If. None are callable functions, so they bypass the
+        # allowlist — a genuine function call is never one of these (e.g. load_extension
+        # parses as exp.Anonymous). Their child expressions are still walked and checked.
+        # Without this, a WHERE ... AND ... or a CASE WHEN ... is wrongly rejected.
+        if isinstance(function, exp.Connector | exp.Binary | exp.Unary | exp.Case | exp.If):
             continue
         name = _function_name(function)
         if name not in ALLOWED_FUNCTIONS:

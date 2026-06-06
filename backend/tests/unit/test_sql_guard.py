@@ -29,6 +29,10 @@ ALLOWED_QUERIES = [
     "SELECT department, base_salary_usd_minor, "
     "ROW_NUMBER() OVER (PARTITION BY department ORDER BY base_salary_usd_minor DESC) AS rn "
     "FROM employees WHERE deleted_at IS NULL",
+    # CAST + nested subquery (the "top 10% overrepresentation" shape).
+    "SELECT department, CAST(SUM(CASE WHEN pct = 1 THEN 1 ELSE 0 END) AS REAL) / COUNT(*) AS ratio "
+    "FROM (SELECT department, NTILE(10) OVER (ORDER BY base_salary_usd_minor DESC) AS pct "
+    "FROM employees WHERE deleted_at IS NULL) GROUP BY department",
 ]
 
 REJECTED_QUERIES = [
@@ -41,6 +45,8 @@ REJECTED_QUERIES = [
     "SELECT * FROM pg_catalog.pg_tables",
     "SELECT * FROM users",
     "SELECT load_extension('evil.so') FROM employees",
+    "SELECT randomblob(1000000000) FROM employees",
+    "SELECT zeroblob(1000000000) FROM employees",
     "SELECT department FROM employees -- sneaky comment",
     "SELECT department FROM employees /* block comment */",
     "PRAGMA table_info(employees)",
