@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useEmployees, type EmployeeListParams } from "@/api/hooks";
-import { buildQuery } from "@/api/client";
+import { API_BASE, buildQuery } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ export function EmployeesPage() {
   const employees = query.data?.pages.flatMap((page) => page.items) ?? [];
   const total = query.data?.pages[0]?.total ?? 0;
 
-  const exportHref = `/api/v1/employees/export${buildQuery({
+  const exportHref = `${API_BASE}/employees/export${buildQuery({
     q: params.q,
     department: params.department,
     country: params.country,
