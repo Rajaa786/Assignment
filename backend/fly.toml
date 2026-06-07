@@ -23,12 +23,11 @@ primary_region = "bom"
 [http_service]
   internal_port = 8000
   force_https = true
-  # Concurrency / cost trade-off:
-  #   auto_stop_machines  - Fly stops the machine after it goes idle.
-  #   auto_start_machines - and boots it on demand when a request arrives.
-  # min_machines_running = 1 keeps one instance always warm, so requests never pay a
-  # cold-start penalty. Set it to 0 for pure scale-to-zero (lowest cost, but the first
-  # request after an idle period waits for boot).
+  # Keep one instance warm: min_machines_running = 1 stops Fly from idling the last
+  # running machine, so it stays up once started (the first request after a deploy may
+  # still cold-start it, since min is enforced on request, not proactively). auto_start
+  # boots it on demand; auto_stop trims any extra machines. For pure scale-to-zero
+  # (lowest cost, cold start after each idle period), set min_machines_running = 0.
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 1
